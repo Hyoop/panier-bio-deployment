@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+  nginx: 
+    image: nginx:latest
+    container_name: nginx
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    volumes:
+      - /home/ubuntu/srv/images/:/var/www/data/images/
+      - ./nginx:/etc/nginx/conf.d
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    ports:
+      - 80:80
+      - 443:443
+    networks:
+      - front-net
+      - back-net
+    depends_on:
+      - backend
+      - adminpanel
+  certbot:
+     image: certbot/certbot:latest
+     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+     volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+     
+  adminpanel:
+    image: hyoshin/adminpanel:v1.2
+    expose:
+      - "3000"
+    networks:
+      - front-net
+    container_name: adminpanel
+  backend:
+    image: hyoshin/backend:v0.9
+    expose:
+      - "4000"
+    volumes: 
+      - /home/ubuntu/srv/images:/backend/images
+    networks:
+      - back-net
+    depends_on:
+      - mongo   
+    container_name: backend
+  mongo:
+    image: hyoshin/mongo:v0.1
+    container_name: mongo
+    ports:
+      - 27017:27017
+    expose:
+      - "27017"
+    volumes:
+      - /home/ubuntu/srv/data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${ADMIN}
+      MONGO_INITDB_ROOT_PASSWORD: ${PASSWORD}
+      MONGO_INITDB_DATABASE: admin
+    networks:
+      - back-net
+
+networks:
+    front-net:
+      driver: bridge
+    back-net:
+      driver: bridge
